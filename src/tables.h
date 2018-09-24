@@ -49,10 +49,7 @@ int64_t get_addr_for_symbol(SymbolTable* table, const char* name);
 /* IMPLEMENT ME - see documentation in tables.c */
 void write_table(SymbolTable* table, FILE* output);
 
-int is_name_in_table(SymbolTable* table, const char* name);
-uint32_t get_symbol_offset_by_name(SymbolTable* table, const char* name);
-
 // Number of bytes in a commit id
-#define SYMBOL_TABLE_MAX_DEFS 4;
+#define SYMBOL_TABLE_MAX_DEFS 8;
 
 #endif

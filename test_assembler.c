@@ -131,7 +131,7 @@ void test_table_1() {
 }
 
 void test_table_2() {
-    int retval, max = 4;
+    int retval, max = 100;
 
     SymbolTable* tbl = create_table(SYMTBL_UNIQUE_NAME);
     CU_ASSERT_PTR_NOT_NULL(tbl);
@@ -180,9 +180,9 @@ int main(int argc, char** argv) {
     if (!pSuite2) {
         goto exit;
     }
-    // if (!CU_add_test(pSuite2, "test_table_1", test_table_1)) {
-    //     goto exit;
-    // }
+    if (!CU_add_test(pSuite2, "test_table_1", test_table_1)) {
+        goto exit;
+    }
     if (!CU_add_test(pSuite2, "test_table_2", test_table_2)) {
         goto exit;
     }

@@ -13,21 +13,25 @@ const int SYMTBL_UNIQUE_NAME = 1;
  * Helper Functions
  *******************************/
 
-void allocation_failed() {
-    write_to_log("Error: allocation failed\n");
-    exit(1);
+void allocation_failed()
+{
+  write_to_log("Error: allocation failed\n");
+  exit(1);
 }
 
-void addr_alignment_incorrect() {
-    write_to_log("Error: address is not a multiple of 4.\n");
+void addr_alignment_incorrect()
+{
+  write_to_log("Error: address is not a multiple of 4.\n");
 }
 
-void name_already_exists(const char* name) {
-    write_to_log("Error: name '%s' already exists in table.\n", name);
+void name_already_exists(const char *name)
+{
+  write_to_log("Error: name '%s' already exists in table.\n", name);
 }
 
-void write_symbol(FILE* output, uint32_t addr, const char* name) {
-    fprintf(output, "%u\t%s\n", addr, name);
+void write_symbol(FILE *output, uint32_t addr, const char *name)
+{
+  fprintf(output, "%u\t%s\n", addr, name);
 }
 
 /*******************************
@@ -40,31 +44,39 @@ void write_symbol(FILE* output, uint32_t addr, const char* name) {
    Mode will be either SYMTBL_NON_UNIQUE or SYMTBL_UNIQUE_NAME. You will need
    to store this value for use during add_to_table().
  */
-SymbolTable* create_table(int mode) {
-    // allocate memory for SymbolTable
-    SymbolTable* symbol_table = malloc(sizeof(SymbolTable));
-    // check if mem alloc failed
-    if (symbol_table != NULL) {
-      // initialize values
-      symbol_table->len  = 0;
-      symbol_table->cap  = SYMBOL_TABLE_MAX_DEFS;
-      symbol_table->mode = mode;
-      // allocate & check memory for symbol defs
-      void* symbol_defs = malloc(symbol_table->cap * sizeof(Symbol*));
-      symbol_table->tbl = (Symbol*) symbol_defs;
-      if (symbol_table->tbl == NULL) {
-        free(symbol_table);
-        allocation_failed();
-      }
-    } else 
-      allocation_failed();
-    // return pointer to new table
-    return symbol_table;
+SymbolTable *create_table(int mode)
+{
+  // allocate memory for SymbolTable
+  SymbolTable *symtbl_ptr = (SymbolTable *)malloc(sizeof(SymbolTable));
+
+  // check if mem alloc failed
+  if (symtbl_ptr == NULL)
+    allocation_failed();
+
+  // initialize values
+  symtbl_ptr->len = 0;
+  symtbl_ptr->cap = SYMBOL_TABLE_MAX_DEFS; // 8
+  symtbl_ptr->mode = mode;
+
+  // allocate memory for symbol defs
+  symtbl_ptr->tbl = (Symbol *)malloc(symtbl_ptr->cap * sizeof(Symbol));
+
+  // check malloc failure
+  if (symtbl_ptr->tbl == NULL)
+  {
+    free(symtbl_ptr);
+    allocation_failed();
+  }
+
+  // return pointer to new table
+  return symtbl_ptr;
 }
 
 /* Frees the given SymbolTable and all associated memory. */
-void free_table(SymbolTable* table) {
-  free(table->tbl);
+void free_table(SymbolTable *table)
+{
+  if (!table)
+    return free(table->tbl);
   free(table);
 }
 
@@ -82,107 +94,114 @@ void free_table(SymbolTable* table) {
 
    Otherwise, you should store the symbol name and address and return 0.
  */
-int add_to_table(SymbolTable* table, const char* name, uint32_t addr) {
-    uint32_t n_symbols = table->len;
-    printf("\nadding name %s at addr %d\n", name, addr);
+int add_to_table(SymbolTable *table, const char *name, uint32_t addr)
+{
+  if (!table)
+    allocation_failed();
 
-    // check address is word-aligned
-    if (addr % 4) {
-      addr_alignment_incorrect();
-      return -1;
+  // check address is word-aligned
+  if (addr % 4 != 0)
+  {
+    addr_alignment_incorrect();
+    return -1;
+  }
+
+  // if we're capped out on number of symbols stored, allocate more memory
+  if (table->len >= table->cap)
+  {
+    uint32_t new_cap = (table->cap) + SYMBOL_TABLE_MAX_DEFS;
+    uint32_t new_size = new_cap * sizeof(Symbol);
+
+    Symbol *temp = (Symbol *)malloc(new_size);
+
+    if (temp == NULL)
+    {
+      free(temp);
+      allocation_failed();
     }
 
+    for (int i = 0; i < table->len; i++)
+      temp[i] = (table->tbl)[i];
+
+    free(table->tbl);
+    table->tbl = temp;
+    table->cap = new_cap;
+  }
+
+  // Create new Symbol
+  Symbol *current = table->tbl;
+  if (!current)
+    allocation_failed();
+  else
+  {
     // check for name if mode is uique
-    if (
-      table->mode == SYMTBL_UNIQUE_NAME && 
-      is_name_in_table(table, name)
-    ) {
-      name_already_exists(name);
-      return -1;
-    }
-
-    // if we're capped out on number of symbols stored, allocate more memory
-    if (n_symbols >= table->cap) {
-      uint32_t new_cap = table->cap + SYMBOL_TABLE_MAX_DEFS;
-      void* tmp = realloc(table->tbl, (new_cap * sizeof(Symbol*)));
-      if (tmp == NULL) {
-        free_table(table);
-        allocation_failed();
-      } else {
-        printf("\nrealloc successful. new cap: %d\n", new_cap);
-        table->cap = new_cap;
-        table->tbl = (Symbol*) tmp;
+    if (table->mode == SYMTBL_UNIQUE_NAME)
+    {
+      for (int i = 0; i < table->len; i++)
+      {
+        current = (table->tbl) + i;
+        if (strcmp(current->name, name) == 0)
+        {
+          name_already_exists(name);
+          return -1;
+        }
       }
     }
-    
-    // create new Symbol
-    char* name_cpy = malloc(sizeof(name));
-    strcpy(name_cpy, name); // NAME may point to a temporary array, so copy for safety
-    Symbol symbol = { name_cpy, addr };
+  }
 
+  // NAME may point to a temporary array, so copy for safety
+  char *name_cpy = (char *)malloc(sizeof(name) + 1);
+  strcpy(name_cpy, name);
 
-    // add new symbol to table
-    uint32_t symbol_offset = sizeof(Symbol*) * n_symbols;
-    *(table->tbl + symbol_offset) = symbol;
-    table->len = table->len + 1;
+  // assigne and add to table
+  Symbol new_sym = {name_cpy, addr};
+  *(table->tbl + table->len) = new_sym;
 
-    return 0;
+  // increment length
+  table->len += 1;
+
+  return 0;
 }
 
 /* Returns the address (byte offset) of the given symbol. If a symbol with name
    NAME is not present in TABLE, return -1.
  */
-int64_t get_addr_for_symbol(SymbolTable* table, const char* name) {
-    uint32_t symbol_offset = get_symbol_offset_by_name(table, name);
-    if (symbol_offset == -1)
-      return -1;
-    else {
-      Symbol symbol = *(table->tbl + symbol_offset);
-      return symbol.addr;
+int64_t get_addr_for_symbol(SymbolTable *table, const char *name)
+{
+  if (!table)
+    return -1;
+  else
+  {
+    Symbol *current;
+    // Check for already assigned names
+    for (int i = 0; i < table->len; i++)
+    {
+      current = (table->tbl) + i;
+      if (strcmp(current->name, name) == 0)
+        return current->addr;
     }
+  }
+  return -1;
 }
 
 /* Writes the SymbolTable TABLE to OUTPUT. You should use write_symbol() to
    perform the write. Do not print any additional whitespace or characters.
  */
-void write_table(SymbolTable* table, FILE* output) {
-    uint32_t n_symbols = table->len;
+void write_table(SymbolTable *table, FILE *output)
+{
+  if (!table)
+    return;
 
-    for (int i = 0; i < n_symbols; i++) {
-      uint32_t symbol_ptr_offset = sizeof(Symbol*) * i;
-      Symbol symbol_i = *(table->tbl + symbol_ptr_offset);
-      write_symbol(output, symbol_i.addr, symbol_i.name);
-    }
-}
+  Symbol *current = table->tbl;
 
-int is_name_in_table(SymbolTable* table, const char* name) {
-  uint32_t n_symbols = table->len;
-  if (n_symbols == 0)
-    return 0;
-
-  for (int i = 0; i < n_symbols; i++) {
-    uint32_t symbol_ptr_offset = sizeof(Symbol*) * i;
-    printf("\nchecking at offset %d\n", symbol_ptr_offset);
-    Symbol symbol_i = *(table->tbl + symbol_ptr_offset);
-    if (strcmp(symbol_i.name, name) == 0) {
-      return 1;
+  if (!current)
+    return;
+  else
+  {
+    for (int i = 0; i < table->len; i++)
+    {
+      current = (table->tbl) + i;
+      write_symbol(output, current->addr, current->name);
     }
   }
-  printf("\nis name in table? - no\n");
-  return 0;
-}
-
-uint32_t get_symbol_offset_by_name(SymbolTable* table, const char* name) {
-  uint32_t n_symbols = table->len;
-  if (n_symbols == 0)
-    return -1;
-
-  for (int i = 0; i < n_symbols; i++) {
-    uint32_t symbol_ptr_offset = sizeof(Symbol*) * i;
-    Symbol symbol_i = *(table->tbl + symbol_ptr_offset);
-    if (strcmp(symbol_i.name, name) == 0) {
-      return symbol_ptr_offset;
-    }
-  }
-  return -1;
 }
